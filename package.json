@@ -48,20 +48,18 @@
     "Passport",
     "Passport Reader",
     "NFCPassportReader",
-    "CCCD Viet Nam",
-    "react-native-nfc-passport-info",
-    "VietIDScanner"
+    "react-native-nfc-passport-info"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LongNguyen2312/react-native-nfc-passport-info.git"
+    "url": "git+https://github.com/tswiejkowski/react-native-nfc-passport-info.git"
   },
-  "author": "Long nguyen <longnv.main@gmail.com> (https://github.com/LongNguyen2312)",
+  "author": "tswiejkowski",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/LongNguyen2312/react-native-nfc-passport-info/issues"
+    "url": "https://github.com/tswiejkowski/react-native-nfc-passport-info/issues"
   },
-  "homepage": "https://github.com/LongNguyen2312/react-native-nfc-passport-info#readme",
+  "homepage": "https://github.com/tswiejkowski/react-native-nfc-passport-info#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

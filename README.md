@@ -1,6 +1,6 @@
 # react-native-nfc-passport-info
 
-Read data from NFC passport, Vietnam CCCD for iOS and Android, reference from `NFCPassportReader` and `jmrtd`
+Read data from NFC passport, iOS and Android, reference from `NFCPassportReader` and `jmrtd`
 
 ## Installation
 
