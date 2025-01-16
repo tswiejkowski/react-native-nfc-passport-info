@@ -53,16 +53,7 @@ final class SettingsStore: NSObject, ObservableObject {
         set { defaults.set(newValue, forKey: Keys.captureLog) }
         get { defaults.bool(forKey: Keys.captureLog) }
     }
-    
-   /* var logLevel: LogLevel {
-        get {
-            return LogLevel(rawValue:defaults.integer(forKey: Keys.logLevel)) ?? .info
-        }
-        set {
-            defaults.set(newValue.rawValue, forKey: Keys.logLevel)
-        }
-    }*/
-    
+        
     var useNewVerificationMethod: Bool {
         set { defaults.set(newValue, forKey: Keys.useNewVerification) }
         get { defaults.bool(forKey: Keys.useNewVerification) }
@@ -104,20 +95,20 @@ final class SettingsStore: NSObject, ObservableObject {
 @objc(ReadNfcPassport)
 class ReadNfcPassport: NSObject {
 
-  private let passportReader: Any
-  private let settings = SettingsStore()
+    private let passportReader: Any
+    private let settings = SettingsStore()
     private static let logger = Logger(
-            subsystem: Bundle.main.bundleIdentifier!,
-            category: String(describing: ReadNfcPassport.self)
+        subsystem: Bundle.main.bundleIdentifier!,
+        category: String(describing: ReadNfcPassport.self)
     );
   
-  override init() {
-    guard #available(iOS 13, *) else {
-      passportReader = NSNull()
-      return;
+    override init() {
+        guard #available(iOS 13, *) else {
+            passportReader = NSNull()
+            return;
+        }
+        passportReader = PassportReader()
     }
-      passportReader = PassportReader()
-  }
     
     private func convertImageToBase64String (img: UIImage?) -> String {
         return img != nil ? ( img!.jpegData(compressionQuality: 1)?.base64EncodedString() ?? "") : ""
@@ -155,7 +146,10 @@ class ReadNfcPassport: NSObject {
                    resolve(["error": "Please provide a valid MRZ"])
                    return
                }
-        
+        guard let customMessages = options.value(forKey: "customMessages") as? NSDictionary else {
+                   resolve(["error": "Please provide a valid customMessages object"])
+                   return
+               }   
         Task {
                   let customMessageHandler : (NFCViewDisplayMessage)->String? = { (displayMessage) in
                     switch displayMessage {
@@ -165,11 +159,11 @@ class ReadNfcPassport: NSObject {
                             case .authenticatingWithPassport(let progress):
                                 let message = customMessages["authenticatingWithPassport"] as? String ?? "Authenticating with passport.....";
                                 let progressString = self.handleProgress(percentualProgress: progress)
-                                return "\(message)\n\n\(progressString)"
+                                return "\(message) \(progressString)"
                             case .readingDataGroupProgress(let dataGroup, let progress):
                                 let message = customMessages["readingDataGroupProgress"] as? String ?? "Reading passport.....";
                                 let progressString = self.handleProgress(percentualProgress: progress)
-                                return "\(message)\n\n\(progressString)"
+                                return "\(message) \(progressString)"
                             case .error(let tagError):
                                 let message = customMessages["error"] as? String ?? "Failed to read Passport NFC";
                                 let errorKey = tagError.errorDescription ?? "UnknownError"
