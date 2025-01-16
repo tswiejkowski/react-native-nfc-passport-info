@@ -24,6 +24,7 @@ export async function scanNfc({
   documentNumber,
   dateOfBirth,
   dateOfExpiry,
+  customMessages
 }: any) {
   assert(
     typeof documentNumber === 'string',
@@ -39,7 +40,7 @@ export async function scanNfc({
   );
 
   return Platform?.OS === 'ios'
-    ? scanNfcIos({ documentNumber, dateOfBirth, dateOfExpiry })
+    ? scanNfcIos({ documentNumber, dateOfBirth, dateOfExpiry, customMessages })
     : scanNfcAndroid({ documentNumber, dateOfBirth, dateOfExpiry });
 }
 
@@ -67,12 +68,18 @@ export function cancelScanNfc() {
   ReadNfcPassport?.cancel();
 }
 
-async function scanNfcIos({ documentNumber, dateOfBirth, dateOfExpiry }: any) {
+async function scanNfcIos({ documentNumber, dateOfBirth, dateOfExpiry, customMessages = {} }: any) {
   return new Promise((resolve, reject) => {
     const mrzKeyTemp = getMRZKey(documentNumber, dateOfBirth, dateOfExpiry);
-    ReadNfcPassport.readPassport(mrzKeyTemp, {
-      requestPresentPassport: 'Hold your phone near an NFC enabled ID card',
-    })
+   /*
+   customMessages: {
+        requestPresentPassport: 'Hold your phone near an NFC enabled ID card',
+        authenticatingWithPassport: '',
+        readingDataGroupProgress: '',
+        successfulRead: '',
+      }
+   */
+      ReadNfcPassport.scanPassport({mrz: mrzKeyTemp, customMessages})
       .then((data: any) => {
         resolve(data);
       })

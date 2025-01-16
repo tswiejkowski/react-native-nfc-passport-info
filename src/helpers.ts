@@ -27,7 +27,7 @@ export const getMRZKey = (
 
 const pad = (value: string, fieldLength: number) => {
   // Pad out field lengths with < if they are too short
-  const paddedValue = ('<'.repeat(fieldLength) + value).slice(-fieldLength);
+  const paddedValue = value.padEnd(fieldLength, '<');
   return paddedValue;
 };
 
