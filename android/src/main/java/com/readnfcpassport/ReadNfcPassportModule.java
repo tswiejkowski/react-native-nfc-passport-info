@@ -41,6 +41,7 @@ import org.jmrtd.lds.icao.MRZInfo;
 import org.jmrtd.lds.iso19794.FaceImageInfo;
 import org.jmrtd.lds.iso19794.FaceInfo;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -68,7 +69,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
   private static final String KEY_FIRST_NAME = "firstName";
   private static final String KEY_LAST_NAME = "lastName";
   private static final String KEY_GENDER = "gender";
-  private static final String KEY_ISSUER = "issuer";
+  private static final String KEY_ISSUER = "issuingAuthority";
   private static final String KEY_NATIONALITY = "nationality";
   private static final String KEY_PHOTO = "photo";
   private static final String PARAM_DOC_NUM = "documentNumber";
@@ -293,6 +294,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
       private DG1File dg1File;
       private DG2File dg2File;
+      private SODFile sodFile;
       private Bitmap bitmap;
 
       @Override
@@ -338,6 +340,37 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
               InputStream dg2In = service.getInputStream(PassportService.EF_DG2);
               dg2File = new DG2File(dg2In);
+
+              InputStream sodIn = service.getInputStream(PassportService.EF_SOD);
+              sodFile = new SODFile(sodIn);
+
+            try {
+                X509Certificate docSigningCertificate = sodFile.getDocSigningCertificate();
+
+                StringWriter sw = new StringWriter();
+                try (JcaPEMWriter jpw = new JcaPEMWriter(sw)) {
+                    jpw.writeObject(docSigningCertificate);
+                } catch (Exception e) {
+                      Log.e(e);
+                }
+                String pem = sw.toString();
+                Log.e('docSigningCertificate pem format ', pem);
+
+                private documentSigningCertificate = [
+                       "issuerName" : documentSigningCertificate.getIssuerDN().getName(),
+                        //"publicKeyAlgorithm": documentSigningCertificate.getPublicKeyAlgorithm(),
+                        "signatureAlgorithm": documentSigningCertificate.getSigAlgName(),
+                        "subjectName": documentSigningCertificate.getSubjectDN().getName(),
+                        //"fingerprint": documentSigningCertificate.getFingerprint(),
+                        "validUntil": documentSigningCertificate.getNotAfter(),
+                        "validFrom": documentSigningCertificate.getNotBefore(),
+                        "serialNumber": documentSigningCertificate.getSerialNumber(),
+                        "pem": pem,
+                    ]
+                    Log.e('docSigningCertificate ', documentSigningCertificate);
+                } catch (Exception e) {
+                    Log.e(e);
+                }
 
               List<FaceImageInfo> allFaceImageInfos = new ArrayList<>();
               List<FaceInfo> faceInfos = dg2File.getFaceInfos();

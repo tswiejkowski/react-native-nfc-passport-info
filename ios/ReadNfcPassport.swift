@@ -190,9 +190,23 @@ class ReadNfcPassport: NSObject {
                 DispatchQueue.main.async {
                     let photo = passport.passportImage
                     let photoBase64 = "data:image/png;base64," + self.convertImageToBase64String(img: photo)
+                  
+                    let documentSigningCertificate = [
+                        "issuerName" : passport.documentSigningCertificate?.getIssuerName(),
+                        "publicKeyAlgorithm": passport.documentSigningCertificate?.getPublicKeyAlgorithm(),
+                        "signatureAlgorithm": passport.documentSigningCertificate?.getSignatureAlgorithm(),
+                        "subjectName":passport.documentSigningCertificate?.getSubjectName(),
+                        "fingerprint": passport.documentSigningCertificate?.getFingerprint(),
+                        "validUntil": passport.documentSigningCertificate?.getNotAfterDate(),
+                        "validFrom": passport.documentSigningCertificate?.getNotBeforeDate(),
+                        "serialNumber": passport.documentSigningCertificate?.getSerialNumber(),
+                        "pem": passport.documentSigningCertificate?.certToPEM(),
+                    ]
+
                     var result: [String: Any] = [
                         "dateOfExpiry": passport.documentExpiryDate,
                         "passportMRZ": passport.passportMRZ,
+                        "issuingAuthority": passport.issuingAuthority,
                         "personalNumber": passport.personalNumber,
                         "dateOfBirth": passport.dateOfBirth,
                         "firstName" : passport.firstName,
@@ -204,6 +218,7 @@ class ReadNfcPassport: NSObject {
                         "activeAuthenticationPassed":passport.activeAuthenticationPassed,
                         "documentSigningCertificateVerified": passport.documentSigningCertificateVerified,
                         "passportDataNotTampered": passport.passportDataNotTampered,
+                        "documentSigningCertificate": documentSigningCertificate,
                         "photo" : [
                           "base64": photoBase64,
                           "width": (photo?.size.width ?? 100) * (photo?.scale ?? 1),
