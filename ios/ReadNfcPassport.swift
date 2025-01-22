@@ -191,34 +191,18 @@ class ReadNfcPassport: NSObject {
                     let photo = passport.passportImage
                     let photoBase64 = "data:image/png;base64," + self.convertImageToBase64String(img: photo)
                   
-                    let documentSigningCertificate = [
-                        "issuerName" : passport.documentSigningCertificate?.getIssuerName(),
-                        "publicKeyAlgorithm": passport.documentSigningCertificate?.getPublicKeyAlgorithm(),
-                        "signatureAlgorithm": passport.documentSigningCertificate?.getSignatureAlgorithm(),
-                        "subjectName":passport.documentSigningCertificate?.getSubjectName(),
-                        "fingerprint": passport.documentSigningCertificate?.getFingerprint(),
-                        "validUntil": passport.documentSigningCertificate?.getNotAfterDate(),
-                        "validFrom": passport.documentSigningCertificate?.getNotBeforeDate(),
-                        "serialNumber": passport.documentSigningCertificate?.getSerialNumber(),
-                        "pem": passport.documentSigningCertificate?.certToPEM(),
-                    ]
-
-                    var result: [String: Any] = [
-                        "dateOfExpiry": passport.documentExpiryDate,
-                        "passportMRZ": passport.passportMRZ,
-                        "issuingAuthority": passport.issuingAuthority,
-                        "personalNumber": passport.personalNumber,
-                        "dateOfBirth": passport.dateOfBirth,
+                    var result: [String: Any] = [ 
                         "firstName" : passport.firstName,
                         "lastName" : passport.lastName,
                         "gender" : passport.gender,
                         "nationality" : passport.nationality,
+                        "issuingAuthority": passport.issuingAuthority,
+                        "personalNumber": passport.personalNumber,
                         "documentNumber": passport.documentNumber,
-                        "passportCorrectlySigned":passport.passportCorrectlySigned,
-                        "activeAuthenticationPassed":passport.activeAuthenticationPassed,
-                        "documentSigningCertificateVerified": passport.documentSigningCertificateVerified,
-                        "passportDataNotTampered": passport.passportDataNotTampered,
-                        "documentSigningCertificate": documentSigningCertificate,
+                        "dateOfBirth": passport.dateOfBirth,
+                        "dateOfExpiry": passport.documentExpiryDate,
+                        "passportMRZ": passport.passportMRZ,
+                        "documentSigningCertificate": passport.documentSigningCertificate?.certToPEM(),
                         "photo" : [
                           "base64": photoBase64,
                           "width": (photo?.size.width ?? 100) * (photo?.scale ?? 1),

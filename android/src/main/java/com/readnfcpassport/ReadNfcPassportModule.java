@@ -48,6 +48,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +56,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
 
 @ReactModule(name = ReadNfcPassportModule.NAME)
 public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements LifecycleEventListener, ActivityEventListener {
@@ -79,6 +82,8 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
   private static final String PARAM_DOE = "dateOfExpiry";
   private static final String TAG = "passportreader";
   private static final String JPEG_DATA_URI_PREFIX = "data:image/jpeg;base64,";
+  private static final String DSC = "documentSigningCertificate";
+
 
   private final ReactApplicationContext reactContext;
   private Promise scanPromise;
@@ -296,6 +301,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
       private DG2File dg2File;
       private SODFile sodFile;
       private Bitmap bitmap;
+      private String documentSigningCertificate;
 
       @Override
       protected Exception doInBackground(Void... params) {
@@ -344,33 +350,15 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
               InputStream sodIn = service.getInputStream(PassportService.EF_SOD);
               sodFile = new SODFile(sodIn);
 
-            try {
                 X509Certificate docSigningCertificate = sodFile.getDocSigningCertificate();
 
                 StringWriter sw = new StringWriter();
                 try (JcaPEMWriter jpw = new JcaPEMWriter(sw)) {
                     jpw.writeObject(docSigningCertificate);
                 } catch (Exception e) {
-                      Log.e(e);
+                      Log.e(TAG,"JcaPEMWriter",e);
                 }
-                String pem = sw.toString();
-                Log.e('docSigningCertificate pem format ', pem);
-
-                private documentSigningCertificate = [
-                       "issuerName" : documentSigningCertificate.getIssuerDN().getName(),
-                        //"publicKeyAlgorithm": documentSigningCertificate.getPublicKeyAlgorithm(),
-                        "signatureAlgorithm": documentSigningCertificate.getSigAlgName(),
-                        "subjectName": documentSigningCertificate.getSubjectDN().getName(),
-                        //"fingerprint": documentSigningCertificate.getFingerprint(),
-                        "validUntil": documentSigningCertificate.getNotAfter(),
-                        "validFrom": documentSigningCertificate.getNotBefore(),
-                        "serialNumber": documentSigningCertificate.getSerialNumber(),
-                        "pem": pem,
-                    ]
-                    Log.e('docSigningCertificate ', documentSigningCertificate);
-                } catch (Exception e) {
-                    Log.e(e);
-                }
+                documentSigningCertificate = sw.toString();
 
               List<FaceImageInfo> allFaceImageInfos = new ArrayList<>();
               List<FaceInfo> faceInfos = dg2File.getFaceInfos();
@@ -434,14 +422,16 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
               passport.putMap(KEY_PHOTO, photo);
               passport.putString(KEY_FIRST_NAME, firstName);
               passport.putString(KEY_LAST_NAME, lastName);
-              passport.putString(KEY_NATIONALITY, mrzInfo.getNationality());
               passport.putString(KEY_GENDER, mrzInfo.getGender().toString());
+              passport.putString(KEY_NATIONALITY, mrzInfo.getNationality());
               passport.putString(KEY_ISSUER, mrzInfo.getIssuingState());
               passport.putString(PERSONAL_NUM, mrzInfo.getPersonalNumber());
+              passport.putString(PARAM_DOC_NUM, mrzInfo.getDocumentNumber());
               passport.putString(PARAM_DOB, mrzInfo.getDateOfBirth());
               passport.putString(PARAM_DOE, mrzInfo.getDateOfExpiry());
               passport.putString(MRZ, mrzInfo.toString().replace("\n", ""));
-
+              passport.putString(DSC, documentSigningCertificate);
+              
               scanPromise.resolve(passport);
               resetState();
           }catch (Exception e) {}
