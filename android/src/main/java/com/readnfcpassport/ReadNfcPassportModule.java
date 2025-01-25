@@ -302,6 +302,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
       private SODFile sodFile;
       private Bitmap bitmap;
       private String documentSigningCertificate;
+      private boolean documentSigningCertificateVerified;
 
       @Override
       protected Exception doInBackground(Void... params) {
@@ -359,6 +360,20 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
                       Log.e(TAG,"JcaPEMWriter",e);
                 }
                 documentSigningCertificate = sw.toString();
+                documentSigningCertificateVerified = sodFile.checkDocSignature(docSigningCertificate);
+
+                /* WIP
+                // passportDataNotTampered
+                Map<Integer, byte[]> hashMap = sodFile.getDataGroupHashes();
+                String sodHashAlgorythm = sodfile.getDigestAlgorithm();
+                // get DG1 value
+                byte[] dg1Val = dg1File.getContent();
+                MessageDigest digest = MessageDigest.getInstance(alg);
+                byte[] file = (new BERTLVObject(tag, dg1Val)).getEncoded();
+				byte[] computedHash = digest.digest(file);
+                // let computedHashVal = binToHexRep(dgVal.hash(sodHashAlgorythm))
+                // end data tempered
+                */
 
               List<FaceImageInfo> allFaceImageInfos = new ArrayList<>();
               List<FaceInfo> faceInfos = dg2File.getFaceInfos();
