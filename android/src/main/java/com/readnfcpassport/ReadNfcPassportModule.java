@@ -42,6 +42,9 @@ import org.jmrtd.lds.iso19794.FaceImageInfo;
 import org.jmrtd.lds.iso19794.FaceInfo;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.jmrtd.Util;
+import net.sf.scuba.tlv.TLVInputStream;
+import net.sf.scuba.tlv.TLVUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -50,6 +53,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.security.Security;
+import java.security.MessageDigest;
+import java.security.GeneralSecurityException;
+import java.security.Provider;
+import java.security.Signature;
+import java.security.cert.Certificate;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,7 +92,10 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
   private static final String TAG = "passportreader";
   private static final String JPEG_DATA_URI_PREFIX = "data:image/jpeg;base64,";
   private static final String DSC = "documentSigningCertificate";
-
+  private static final String DSCV = "documentSigningCertificateVerified";
+  private static final String PDNT = "passportDataNotTampered";
+  
+  private static final Provider BC_PROVIDER = Util.getBouncyCastleProvider();
 
   private final ReactApplicationContext reactContext;
   private Promise scanPromise;
@@ -287,6 +299,110 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
       }
   }
 
+  private static String convertByteToHexadecimal(byte[] byteArray)
+  {
+      String hex = "";
+
+      // Iterating through each byte in the array
+      for (byte i : byteArray) {
+          hex += String.format("%02X", i);
+      }
+
+      return hex;
+  }
+
+  /**
+     * This object, including tag and length, as byte array.
+     * 
+     * @return this object, including tag and length, as byte array
+     */
+    public byte[] getEncoded(int tagInt, int lenghtInt, byte[] data) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            out.write(TLVUtil.getTagAsBytes(tagInt));
+            out.write(TLVUtil.getLengthAsBytes(lenghtInt));
+            out.write(data);
+        } catch (Exception e) {
+            Log.w(TAG, e);
+        }
+        return out.toByteArray();
+    }
+
+  /**
+	 * Verifies the signature over the contents of the security object.
+	 * Clients can also use the accessors of this class and check the
+	 * validity of the signature for themselves.
+	 * 
+	 * See RFC 3369, Cryptographic Message Syntax, August 2002,
+	 * Section 5.4 for details.
+	 * 
+	 * @param docSigningCert the certificate to use
+	 *        (should be X509 certificate)
+	 * 
+	 * @return status of the verification
+	 * 
+	 * @throws GeneralSecurityException if something goes wrong
+	 */
+	private static boolean checkDocSignature(Certificate docSigningCert, SODFile sodFile) throws GeneralSecurityException {
+		byte[] eContent = sodFile.getEContent();
+		byte[] signature = sodFile.getEncryptedDigest();
+
+		String digestEncryptionAlgorithm = null;
+		try {
+			digestEncryptionAlgorithm = sodFile.getDigestEncryptionAlgorithm();
+		} catch (Exception e) {
+			digestEncryptionAlgorithm = null;
+		}
+        Log.d("ReadNFC - checkDocSignature", "digestEncryptionAlgorithm: " + digestEncryptionAlgorithm);
+
+		/*
+		 * For the cases where the signature is simply a digest (haven't seen a passport like this, 
+		 * thus this is guessing)
+		 */
+		if (digestEncryptionAlgorithm == null) {
+			String digestAlg = sodFile.getSignerInfoDigestAlgorithm();
+			MessageDigest digest = null;
+			try {
+				digest = MessageDigest.getInstance(digestAlg);
+			} catch (Exception e) {
+				digest = MessageDigest.getInstance(digestAlg, BC_PROVIDER);
+			}
+			digest.update(eContent);
+			byte[] digestBytes = digest.digest();
+            Log.d("ReadNFC - checkDocSignature", "digestEncryptionAlgorithm is null, digestBytes: " + convertByteToHexadecimal(digestBytes) + " - signature: " + convertByteToHexadecimal(signature));
+
+			return Arrays.equals(digestBytes, signature);
+		}
+
+
+		/* For RSA_SA_PSS
+		 *    1. the default hash is SHA1,
+		 *    2. The hash id is not encoded in OID
+		 * So it has to be specified "manually".
+		 */
+		if ("SSAwithRSA/PSS".equals(digestEncryptionAlgorithm)) {
+			String digestAlg = sodFile.getSignerInfoDigestAlgorithm();
+			digestEncryptionAlgorithm = digestAlg.replace("-", "") + "withRSA/PSS";
+		}
+
+		if ("RSA".equals(digestEncryptionAlgorithm)) {
+			String digestJavaString = sodFile.getSignerInfoDigestAlgorithm();
+			digestEncryptionAlgorithm = digestJavaString.replace("-", "") + "withRSA";
+		}
+
+		Signature sig = null;
+		try {
+			sig = Signature.getInstance(digestEncryptionAlgorithm);
+		} catch (Exception e) {
+			sig = Signature.getInstance(digestEncryptionAlgorithm, BC_PROVIDER);
+		}
+		sig.initVerify(docSigningCert);
+		sig.update(eContent);
+
+		return sig.verify(signature);
+	}
+
+
   private class ReadTask extends AsyncTask<Void, Void, Exception> {
 
       private IsoDep isoDep;
@@ -303,6 +419,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
       private Bitmap bitmap;
       private String documentSigningCertificate;
       private boolean documentSigningCertificateVerified;
+      private boolean passportDataNotTampered;
 
       @Override
       protected Exception doInBackground(Void... params) {
@@ -360,20 +477,46 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
                       Log.e(TAG,"JcaPEMWriter",e);
                 }
                 documentSigningCertificate = sw.toString();
-                documentSigningCertificateVerified = sodFile.checkDocSignature(docSigningCertificate);
+                Certificate dsCertificate = (Certificate) docSigningCertificate;
+               
+                // Init values
+                passportDataNotTampered = false;
+                documentSigningCertificateVerified = false;
 
-                /* WIP
-                // passportDataNotTampered
-                Map<Integer, byte[]> hashMap = sodFile.getDataGroupHashes();
-                String sodHashAlgorythm = sodfile.getDigestAlgorithm();
-                // get DG1 value
-                byte[] dg1Val = dg1File.getContent();
-                MessageDigest digest = MessageDigest.getInstance(alg);
-                byte[] file = (new BERTLVObject(tag, dg1Val)).getEncoded();
-				byte[] computedHash = digest.digest(file);
-                // let computedHashVal = binToHexRep(dgVal.hash(sodHashAlgorythm))
-                // end data tempered
-                */
+                // Verifies the signature over the contents of the security object
+                documentSigningCertificateVerified = checkDocSignature(dsCertificate, sodFile);
+                
+                // Gets the stored data group hashes.
+                Map<Integer, byte[]> storedHashes = sodFile.getDataGroupHashes();
+                // Gets the name of the algorithm used in the data group hashes.
+                String sodHashAlgorythm = sodFile.getDigestAlgorithm();
+                Log.d("ReadNFC - HASHES CHECK", "sodHashAlgorythm: " + sodHashAlgorythm);
+
+                MessageDigest digest = MessageDigest.getInstance(sodHashAlgorythm);
+
+                /* for (int i: storedHashes.keySet()) {
+                    Log.d("ReadNFC - HASHES CHECK", " Stored hash of ");
+                    Log.d("ReadNFC - HASHES CHECK", " DG" + i + ": ");
+                    Log.d("ReadNFC - HASHES CHECK", " Hash value: " + convertByteToHexadecimal(storedHashes.get(i)));
+                } */
+
+                InputStream dg1IS = service.getInputStream(PassportService.EF_DG1);
+                TLVInputStream tlvIn = new TLVInputStream(dg1IS);
+                int tag = tlvIn.readTag();
+		        int length = tlvIn.readLength();
+                byte[] content = tlvIn.readValue();
+                byte[] eContent = getEncoded(tag, length, content);
+				byte[] computedHash = digest.digest(eContent);
+                
+                // Log.d("ReadNFC - HASHES CHECK", " eContent " + convertByteToHexadecimal(eContent));
+                Log.d("ReadNFC - HASHES CHECK", " computedHash value: " + convertByteToHexadecimal(computedHash));
+
+                // Verify only DG1 data, could be done for all passport data
+			    if (storedHashes != null && storedHashes.size() > 0 && Arrays.equals(storedHashes.get(1), computedHash)) {
+					passportDataNotTampered = true;
+				} else {
+					passportDataNotTampered = false;
+				}
 
               List<FaceImageInfo> allFaceImageInfos = new ArrayList<>();
               List<FaceInfo> faceInfos = dg2File.getFaceInfos();
@@ -446,6 +589,8 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
               passport.putString(PARAM_DOE, mrzInfo.getDateOfExpiry());
               passport.putString(MRZ, mrzInfo.toString().replace("\n", ""));
               passport.putString(DSC, documentSigningCertificate);
+              passport.putString(DSCV, String.valueOf(documentSigningCertificateVerified));
+              passport.putString(PDNT, String.valueOf(passportDataNotTampered));
               
               scanPromise.resolve(passport);
               resetState();

@@ -203,6 +203,8 @@ class ReadNfcPassport: NSObject {
                         "dateOfExpiry": passport.documentExpiryDate,
                         "passportMRZ": passport.passportMRZ,
                         "documentSigningCertificate": passport.documentSigningCertificate?.certToPEM(),
+                        "documentSigningCertificateVerified": passport.documentSigningCertificateVerified, // SOD verfified with DSC
+                        "passportDataNotTampered": passport.passportDataNotTampered, // SOD hashes match data hashes
                         "photo" : [
                           "base64": photoBase64,
                           "width": (photo?.size.width ?? 100) * (photo?.scale ?? 1),
