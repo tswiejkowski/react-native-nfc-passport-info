@@ -137,6 +137,10 @@ const onReadNfc = async () => {
 ## Sample app
 There is a sample app included in the repo which demonstrates the functionality.
 
+## Masterliost and CRL
+https://www.icao.int/Security/FAL/PKD/Pages/ICAO-Master-List.aspx
+see paragraph 'availability' for download page link.
+
 ## License
 
 MIT
