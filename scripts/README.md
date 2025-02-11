@@ -72,3 +72,30 @@ This script is pretty much based on the details from http://wiki.yobi.be/wiki/EP
           console.log('validatePassport - Failed to verify certificate', e);
         }
       };
+
+           // verify CLR
+      var verifyCRL = function(x509) {
+        try {
+          let crlCertificates = fs.readFileSync('masterListCRL.pem').toString();
+          let crlList = crlCertificates.split('-----END CERTIFICATE-----');
+          let x509CrlList = crlList.map(e => {
+            if (e && e !== '\n') {
+              return new X509Certificate(e + '-----END CERTIFICATE-----');
+            }
+          });
+
+          x509CrlList = x509CrlList.filter(ca => ca);
+          let verify = false;
+          for (let revokedCert of x509CrlList) {
+            if (!verify) {
+              verify = revokedCert.serialNumber === x509.serialNumber;
+              if (verify) {
+                return verify;
+              }
+            }
+          };
+          return verify;
+        } catch (e) {
+          console.log('validatePassport - Failed to verify certificate', e);
+        }
+      };
