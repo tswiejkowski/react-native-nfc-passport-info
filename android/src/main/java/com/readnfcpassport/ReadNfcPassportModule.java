@@ -25,6 +25,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import net.sf.scuba.smartcards.CardService;
 
@@ -94,7 +95,27 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
   private static final String DSC = "documentSigningCertificate";
   private static final String DSCV = "documentSigningCertificateVerified";
   private static final String PDNT = "passportDataNotTampered";
-  
+
+  private static final String S_IN_PROGRESS = "IN_PROGRESS";
+  private static final String S_WAITING = "WAITING";
+  private static final String S_FINISHED = "FINISHED";
+  private static final String T_INFO = "INFO";
+  private static final String T_ERROR = "ERROR";
+  private static final Integer C_WAITING = 0;
+  private static final Integer C_IN_PROGRESS = 1;
+  private static final Integer C_FINISHED = 2;
+  private static final Integer C_CANCEL = 3;
+  private static final Integer C_ERROR = 4;
+  private static final Integer C_READING_PHOTO = 5;
+  private static final Integer C_VERIFYING_SIGNATURE = 6;
+  private static final Integer C_CHECKING_INTEGRITY = 7;
+  private static final Integer C_FINALIZING = 8;
+  private static final Integer C_STARTED = 9;
+  private static final Integer C_READING_DG1 = 10;
+  private static final Integer C_READING_DG2 = 11;
+  private static final Integer C_READING_SOD = 12;
+  private static final Integer C_CHECKING_SOD = 13;
+
   private static final Provider BC_PROVIDER = Util.getBouncyCastleProvider();
 
   private final ReactApplicationContext reactContext;
@@ -111,12 +132,49 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
     this.reactContext = reactContext;
   }
 
+  private void sendEvent(ReactApplicationContext reactContext,
+          String eventName,
+          @NonNull WritableMap params) {
+      Log.d("CHECK", "sendEvent");
+      reactContext
+              .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+              .emit(eventName, params);
+  }
+
+  private void simpleSendEvent(ReactApplicationContext context, String message) {
+      Log.d("CHECK", "simpleSendEvent");
+      WritableMap params = Arguments.createMap();
+      params.putString("message", message);
+      ReactApplicationContext rc = null;
+      if (context == null)
+          rc = reactContext;
+      else
+          rc = context;
+      sendEvent(rc, "nfcScanEvent", params);
+  }
+
+    private void fullSendEvent(ReactApplicationContext context, Integer code, String type, String status, String message) {
+      Log.d("CHECK", "fullSendEvent");
+      WritableMap params = Arguments.createMap();
+            params.putInt("code", code);
+            params.putString("type", type);
+            params.putString("status", status);
+            params.putString("message", message);
+      ReactApplicationContext rc = null;
+      if (context == null)
+          rc = reactContext;
+      else
+          rc = context;
+      sendEvent(rc, "nfcScanEvent", params);
+  }
+
     @Override
     public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
     }
 
     @Override
     public void onNewIntent(Intent intent) {
+        simpleSendEvent(null, "scan new intent received");
         Log.d("LONG CHECK", "onNewIntent ");
         try {
             if (scanPromise == null) return;
@@ -151,6 +209,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
   @ReactMethod
   public void cancel(final Promise promise) {
+      fullSendEvent(this.reactContext, C_CANCEL, T_INFO, S_FINISHED, "Scan canceled");
       Log.d("LONG CHECK", "cancel ");
       try {
           if (scanPromise != null) {
@@ -164,6 +223,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
   @ReactMethod
   public void scan(final ReadableMap opts, final Promise promise) {
+      fullSendEvent(this.reactContext, C_WAITING, T_INFO, S_WAITING, "Scan waiting for NFC tag");
       Log.d("LONG CHECK", "scan ");
       try {
           NfcAdapter mNfcAdapter = NfcAdapter.getDefaultAdapter(this.reactContext);
@@ -423,6 +483,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
       @Override
       protected Exception doInBackground(Void... params) {
+          fullSendEvent(null, C_IN_PROGRESS, T_INFO, S_IN_PROGRESS, "Scan started");
           Log.d("LONG CHECK", "doInBackground ");
           try {
               CardService cardService = CardService.getInstance(isoDep);
@@ -458,13 +519,16 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
                       service.doBAC(bacKey);
                   }
               }
-
+              
+              fullSendEvent(null, C_READING_DG1, T_INFO, S_IN_PROGRESS, "Reading DG1");
               InputStream dg1In = service.getInputStream(PassportService.EF_DG1);
               dg1File = new DG1File(dg1In);
 
+              fullSendEvent(null, C_READING_DG2, T_INFO, S_IN_PROGRESS, "Reading DG2");
               InputStream dg2In = service.getInputStream(PassportService.EF_DG2);
               dg2File = new DG2File(dg2In);
 
+              fullSendEvent(null, C_READING_SOD, T_INFO, S_IN_PROGRESS, "Reading SOD");
               InputStream sodIn = service.getInputStream(PassportService.EF_SOD);
               sodFile = new SODFile(sodIn);
 
@@ -483,9 +547,11 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
                 passportDataNotTampered = false;
                 documentSigningCertificateVerified = false;
 
+                fullSendEvent(null, C_CHECKING_SOD, T_INFO, S_IN_PROGRESS, "Checking SOD signature");
                 // Verifies the signature over the contents of the security object
                 documentSigningCertificateVerified = checkDocSignature(dsCertificate, sodFile);
                 
+                fullSendEvent(null, C_CHECKING_INTEGRITY, T_INFO, S_IN_PROGRESS, "Checking document data integrity");
                 // Gets the stored data group hashes.
                 Map<Integer, byte[]> storedHashes = sodFile.getDataGroupHashes();
                 // Gets the name of the algorithm used in the data group hashes.
@@ -545,6 +611,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
 
       @Override
       protected void onPostExecute(Exception result) {
+          fullSendEvent(null, C_FINALIZING, T_INFO, S_IN_PROGRESS, "Finalizing scan");
           Log.d("LONG CHECK", "onPostExecute");
           try {
               if (scanPromise == null) return;
@@ -592,6 +659,7 @@ public class ReadNfcPassportModule extends ReactContextBaseJavaModule implements
               passport.putString(DSCV, String.valueOf(documentSigningCertificateVerified));
               passport.putString(PDNT, String.valueOf(passportDataNotTampered));
               
+              fullSendEvent(null, C_FINALIZING, T_INFO, S_FINISHED, "Finalizing scan");
               scanPromise.resolve(passport);
               resetState();
           }catch (Exception e) {}

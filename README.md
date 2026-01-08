@@ -115,6 +115,17 @@ Simple add `uses-permission` into your `AndroidManifest.xml`:
 
 ```js
 import { scanNfc } from 'react-native-nfc-passport-info';
+import { DeviceEventEmitter } from 'react-native';
+
+  componentWillUnmount() {
+    DeviceEventEmitter.removeAllListeners('nfcScanEvent');
+  }
+
+  componentDidMount() {
+    DeviceEventEmitter.addListener('nfcScanEvent', eventData => {
+      console.log('nfcScanEvent eventData', eventData);
+    });
+  }
 
 // documentNumber: Last 9 digits of cccd
 // dateOfBirth: yymmdd
